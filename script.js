@@ -8,18 +8,21 @@ const fs = require('fs');
 const readFile = util.promisify(fs.readFile);
 
 var inputFile = ["data/arr_0.csv", "data/arr_1.csv", "data/arr_2.csv", "data/arr_3.csv", "data/arr_4.csv",
-    "data/normal_0.csv", "data/normal_1.csv", "data/normal_2.csv", "data/normal_3.csv", "data/normal_4.csv"];
+    "data/normal_0.csv", "data/normal_1.csv", "data/normal_2.csv", "data/normal_3.csv", "data/normal_4.csv", "data/arr_5.csv"];
 
-async function myEKGTrain(x_dat, y_dat) {
-    const x = tf.tensor(x_dat);
+async function myEKGTrain(x_dat, y_dat, x_test) {
+    var x = tf.tensor(x_dat);
     const y = tf.tensor(y_dat);
-    console.log(x, y);
-    console.log(x_dat[0].length);
+    const x_t = tf.tensor(x_test);
+
+    let [q, r] = tf.linalg.qr(x);
+    x = q.dot(r);
+
     const model = tf.sequential();
 
     const config_hidden = {
         inputShape: [x_dat[0].length],
-        activation: 'relu',
+        activation: 'sigmoid',
         units: 10
     }
     const config_output={
@@ -33,7 +36,7 @@ async function myEKGTrain(x_dat, y_dat) {
     model.add(hidden);
     model.add(output);
 
-    const optimize=tf.train.sgd(1e-4);
+    const optimize=tf.train.sgd(1e-2);
 
     const config={
         optimizer:optimize,
@@ -45,10 +48,12 @@ async function myEKGTrain(x_dat, y_dat) {
     await model.fit(x, y, { epochs: 250 });
     await model.save("file://./my-model-1");
     console.log("Finish Training");
+    await model.predict(x_t).print();
 }
 
 async function read1(input) {
     var train_x = [];
+    var test_x = [];
     var train_y = [[1], [1], [1], [1], [1], [0], [0], [0], [0], [0]];
 
     for (let i = 0; i < input.length; i++) {
@@ -65,10 +70,15 @@ async function read1(input) {
             set.push(parseFloat(data[j].split(",")[2]));
         }
 
-        train_x.push(set);
+        if (i < 10) {
+            train_x.push(set);
+        } else {
+            test_x.push(set);
+        }
     }
 
-    myEKGTrain(train_x, train_y);
+
+    myEKGTrain(train_x, train_y, test_x);
 }
 
 read1(inputFile);
