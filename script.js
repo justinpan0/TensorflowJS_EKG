@@ -8,16 +8,29 @@ const fs = require('fs');
 const readFile = util.promisify(fs.readFile);
 
 var inputFile = ["data/arr_0.csv", "data/arr_1.csv", "data/arr_2.csv", "data/arr_3.csv", "data/arr_4.csv",
-    "data/normal_0.csv", "data/normal_1.csv", "data/normal_2.csv", "data/normal_3.csv", "data/normal_4.csv", "data/arr_5.csv"];
+    "data/normal_0.csv", "data/normal_1.csv", "data/normal_2.csv", "data/normal_3.csv", "data/normal_4.csv", "data/arr_5.csv", "data/normal_5.csv"];
 
 async function myEKGTrain(x_dat, y_dat, x_test) {
     var x = tf.tensor(x_dat);
     const y = tf.tensor(y_dat);
-    const x_t = tf.tensor(x_test);
+    var x_t = tf.tensor(x_test);
 
+    // Singular Value Decomposition
+    // x = tf.cast(x, 'float32');
     let [q, r] = tf.linalg.qr(x);
     x = q.dot(r);
 
+    let [s, t] = tf.linalg.qr(x_t);
+    x_t = s.dot(t);
+
+    // Fourier Decomposition
+    x = tf.cast(x, 'complex64');
+    x = x.fft();
+
+    x_t = tf.cast(x_t, 'complex64');
+    x_t = x_t.fft();
+
+    // Building TF model
     const model = tf.sequential();
 
     const config_hidden = {
@@ -36,7 +49,7 @@ async function myEKGTrain(x_dat, y_dat, x_test) {
     model.add(hidden);
     model.add(output);
 
-    const optimize=tf.train.sgd(1e-2);
+    const optimize=tf.train.sgd(2e-2);
 
     const config={
         optimizer:optimize,
@@ -45,13 +58,15 @@ async function myEKGTrain(x_dat, y_dat, x_test) {
 
     model.compile(config);
 
-    await model.fit(x, y, { epochs: 250 });
+    await model.fit(x, y, { epochs: 1000 });
     await model.save("file://./my-model-1");
     console.log("Finish Training");
+
+    // Predict the outcomes: 1 : 0
     await model.predict(x_t).print();
 }
 
-async function read1(input) {
+async function execute(input) {
     var train_x = [];
     var test_x = [];
     var train_y = [[1], [1], [1], [1], [1], [0], [0], [0], [0], [0]];
@@ -63,10 +78,6 @@ async function read1(input) {
 
         //for (let j = 2; j < data.length; j++) {
         for (let j = 2; j < 7679; j++) {
-            // var temp = [];
-            // console.log(parseFloat(data[j].split(",")[1]));
-            // temp.push(parseFloat(data[j].split(",")[1]));
-            // set.push(temp);
             set.push(parseFloat(data[j].split(",")[2]));
         }
 
@@ -77,11 +88,10 @@ async function read1(input) {
         }
     }
 
-
     myEKGTrain(train_x, train_y, test_x);
 }
 
-read1(inputFile);
+execute(inputFile);
 
 /*
 const Papa = require('papaparse')
