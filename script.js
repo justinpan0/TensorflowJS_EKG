@@ -12,54 +12,77 @@ var inputFile = ["data/arr_0.csv", "data/arr_1.csv", "data/arr_2.csv", "data/arr
 
 async function myEKGTrain(x_dat, y_dat, x_test) {
     var x = tf.tensor(x_dat);
-    const y = tf.tensor(y_dat);
+    var y = tf.tensor(y_dat);
     var x_t = tf.tensor(x_test);
 
     // Singular Value Decomposition
-    // x = tf.cast(x, 'float32');
     let [q, r] = tf.linalg.qr(x);
-    x = q.dot(r);
-
     let [s, t] = tf.linalg.qr(x_t);
+    x = q.dot(r);
     x_t = s.dot(t);
 
     // Fourier Decomposition
     x = tf.cast(x, 'complex64');
-    x = x.fft();
-
     x_t = tf.cast(x_t, 'complex64');
+    x = x.fft();
     x_t = x_t.fft();
+
+    x = x.expandDims(axis=2);
+    x_t = x_t.expandDims(axis=2);
 
     // Building TF model
     const model = tf.sequential();
 
-    const config_hidden = {
-        inputShape: [x_dat[0].length],
+    // Resolution
+    // 10 Layers max
+    const config_conv = {
+        inputShape: [x_dat[1].length, 1],
+        use_bias: true,
+        kernelSize: 4,
+        filters: 8,
+        strides: 1,
         activation: 'sigmoid',
-        units: 10
-    }
+        kernelInitializer: 'VarianceScaling',
+        units: x_dat[0].length
+    };
+
+    const config_BN = {
+        axis: 2,
+    };
+
+    const config_pool = {
+        poolSize: 2,
+        padding: 'same'
+    };
+
     const config_output={
         units: 1,
         activation:'relu'
-    }
+    };
 
-    const hidden = tf.layers.dense(config_hidden);
+    const conv = tf.layers.conv1d(config_conv);
+    const pool = tf.layers.maxPool1d(config_pool);
+    const flat = tf.layers.flatten();
     const output = tf.layers.dense(config_output);
 
-    model.add(hidden);
+    model.add(conv);
+    model.add()
+    model.add(pool);
+    model.add(flat);
     model.add(output);
 
-    const optimize=tf.train.sgd(2e-2);
+    const optimize=tf.train.sgd(8e-3);
 
     const config={
         optimizer:optimize,
         loss:'meanSquaredError'
-    }
+    };
 
     model.compile(config);
-
-    await model.fit(x, y, { epochs: 1000 });
-    await model.save("file://./my-model-1");
+    console.log(x);
+    console.log(y);
+    await model.fit(x, y, { epochs: 10 });
+    //await model.save("file://./my-model-2");
     console.log("Finish Training");
 
     // Predict the outcomes: 1 : 0
@@ -92,6 +115,7 @@ async function execute(input) {
 }
 
 execute(inputFile);
+
 
 /*
 const Papa = require('papaparse')
